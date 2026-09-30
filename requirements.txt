@@ -1,8 +1,8 @@
-streamlit
-praat-parselmouth==0.103.2
-numpy
-pandas
-matplotlib
-textgrid
-audio-recorder-streamlit
-Pillow
+streamlit>=1.32.0
+parselmouth==0.4.7
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+textgrid>=1.5
+audio-recorder-streamlit>=0.0.6
+Pillow>=10.0.0
