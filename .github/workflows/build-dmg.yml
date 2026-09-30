@@ -20,10 +20,10 @@ jobs:
 
       - name: 安装依赖
         run: |
-          pip config unset global.index-url global.extra-index-url
-          pip install --upgrade pip -i https://pypi.org/simple
-          pip install -i https://pypi.org/simple \
-            --index-url https://pypi.org/simple \
+          pip config unset global.index-url || true
+          pip config unset global.extra-index-url || true
+          pip install --upgrade pip
+          pip install --index-url https://pypi.org/simple \
             streamlit \
             praat-parselmouth==0.11.4 \
             numpy pandas matplotlib textgrid audio-recorder-streamlit \
