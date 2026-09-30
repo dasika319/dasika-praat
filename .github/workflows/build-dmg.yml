@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    env:
+      PIP_INDEX_URL: https://pypi.org/simple
+      PIP_EXTRA_INDEX_URL: ""
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -18,12 +21,17 @@ jobs:
           python-version: "3.11"
           cache: 'pip'
 
+      - name: 诊断源配置
+        run: |
+          echo "=== pip config ==="
+          pip config list || true
+          echo "=== praat-parselmouth 可用版本 ==="
+          pip index versions praat-parselmouth || pip install praat-parselmouth==999999 2>&1 | grep -i "from versions" || true
+
       - name: 安装依赖
         run: |
-          pip config unset global.index-url || true
-          pip config unset global.extra-index-url || true
           pip install --upgrade pip
-          pip install --index-url https://pypi.org/simple \
+          pip install \
             streamlit \
             praat-parselmouth==0.11.4 \
             numpy pandas matplotlib textgrid audio-recorder-streamlit \
