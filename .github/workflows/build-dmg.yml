@@ -2,8 +2,8 @@ name: Build macOS DMG
 
 on:
   workflow_dispatch:
-    push:
-      branches: [main, master]
+  push:
+    branches: [main, master]
 
 jobs:
   build:
@@ -20,17 +20,61 @@ jobs:
 
       - name: 清理可能的污染配置
         run: |
-          rm -f ~/Library/Application\ Support/pip/pip.conf ~/.config/pip/pip.conf ~/.pip/pip.conf 2>/dev/null || true
+          rm -f ~/Library/Application\ Support/pip/pip.conf ~/.config/pip/pip.conf ~/.pip/pip.conf /etc/pip.conf 2>/dev/null || true
+          echo "=== pip config ==="
           pip config list || true
 
       - name: 安装依赖
         run: |
           pip install --upgrade pip
-          # 从官方 API 拿真实 whl 地址，彻底绕过被污染的索引
-          WHEEL=$(curl -sL https://pypi.org/pypi/praat-parselmouth/0.11.4/json | python3 -c "import sys,json; urls=[f['url'] for f in json.load(sys.stdin)['urls'] if 'macosx' in f['filename'] and 'arm64' in f['filename'] and 'cp311' in f['filename']]; print(urls[0] if urls else '')")
-          echo "parsemouth wheel = $WHEEL"
-          if [ -z "$WHEEL" ]; then echo "取不到 whl 地址"; exit 1; fi
-          pip install "$WHEEL"
+
+          # 1) 优先：从官方 API 直取 whl 地址（绕过索引）
+          python3 << 'PY'
+          import sys, json, urllib.request
+          try:
+              raw = urllib.request.urlopen("https://pypi.org/pypi/praat-parselmouth/0.11.4/json", timeout=20).read()
+              data = json.loads(raw)
+              urls = data.get("urls") or data.get("releases", {}).get("0.11.4", [])
+              for f in urls:
+                  nm = f.get("filename", "")
+                  if "macosx" in nm and "arm64" in nm and "cp311" in nm:
+                      print(f["url"]); sys.exit(0)
+              # 没命中 arm64 就取任意 cp311/universal/any
+              for f in urls:
+                  nm = f.get("filename", "")
+                  if "cp311" in nm or "py3-none-any" in nm or "universal2" in nm:
+                      print(f["url"]); sys.exit(0)
+              print("NO_WHEEL", file=sys.stderr); sys.exit(1)
+          except Exception as e:
+              print("RAW:", repr(raw[:300]) if 'raw' in dir() else e, file=sys.stderr)
+              sys.exit(2)
+          PY
+
+          WHEEL=$(python3 << 'PY'
+          import sys, json, urllib.request
+          raw = urllib.request.urlopen("https://pypi.org/pypi/praat-parselmouth/0.11.4/json", timeout=20).read()
+          data = json.loads(raw)
+          urls = data.get("urls") or data.get("releases", {}).get("0.11.4", [])
+          for f in urls:
+              nm = f.get("filename", "")
+              if "macosx" in nm and "arm64" in nm and "cp311" in nm:
+                  print(f["url"]); sys.exit(0)
+          for f in urls:
+              nm = f.get("filename", "")
+              if "cp311" in nm or "py3-none-any" in nm or "universal2" in nm:
+                  print(f["url"]); sys.exit(0)
+          sys.exit(1)
+          PY
+          )
+          echo "wheel = $WHEEL"
+          if [ -z "$WHEEL" ] || [ "$WHEEL" = "NO_WHEEL" ]; then
+            echo "无法解析 whl 地址，走兜底方案"
+            pip download --dest /tmp/wheel --no-deps -i https://pypi.org/simple --trusted-host pypi.org praat-parselmouth==0.11.4 || true
+            WHEEL=$(ls /tmp/wheel/*.whl 2>/dev/null | head -1)
+          fi
+          if [ -n "$WHEEL" ]; then pip install "$WHEEL"; else echo "兜底也失败"; exit 1; fi
+
+          # 2) 其余包正常装（不再碰 parselmouth）
           pip install -i https://pypi.org/simple --trusted-host pypi.org \
             streamlit numpy pandas matplotlib textgrid audio-recorder-streamlit Pillow pyinstaller pillow
 
@@ -43,11 +87,7 @@ jobs:
         run: |
           rm -rf dmg_root && mkdir -p dmg_root
           cp -R dist/VoiceAnalysisApp.app dmg_root/
-          hdiutil create \
-            -volname "VoiceAnalysisTool" \
-            -srcfolder dmg_root \
-            -ov -format UDZO \
-            VoiceAnalysisTool.dmg
+          hdiutil create -volname "VoiceAnalysisTool" -srcfolder dmg_root -ov -format UDZO VoiceAnalysisTool.dmg
           ls -lh VoiceAnalysisTool.dmg
 
       - name: 上传成品
