@@ -2,27 +2,44 @@ name: Build macOS DMG
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main, master]
 
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: 安装依赖
-        run: pip install -r requirements.txt pyinstaller pillow && npm install -g create-dmg
-      - name: 生成图标和背景图
-        run: python assets.py
-      - name: 转换图标
-        run: mkdir -p icon.iconset && sips -z 512 512 resources/app_icon.png --out icon.iconset/icon_512x512.png && sips -z 1024 1024 resources/app_icon.png --out icon.iconset/icon_512x512@2x.png && sips -z 256 256 resources/app_icon.png --out icon.iconset/icon_256x256.png && sips -z 128 128 resources/app_icon.png --out icon.iconset/icon_128x128.png && sips -z 64 64 resources/app_icon.png --out icon.iconset/icon_64x64.png && sips -z 32 32 resources/app_icon.png --out icon.iconset/icon_32x32.png && sips -z 16 16 resources/app_icon.png --out icon.iconset/icon_16x16.png && iconutil -c icns icon.iconset -o resources/app_icon.icns
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pillow
+
       - name: PyInstaller 打包
-        run: pyinstaller VoiceAnalysisApp.spec --clean --noconfirm
+        run: |
+          pyinstaller --name VoiceAnalysisApp --windowed --clean --noconfirm run_app.py
+          ls -la dist/
+
       - name: 封装 DMG
-        run: create-dmg --volname "VoiceAnalysis" --volicon resources/app_icon.icns --background resources/installer_bg.png --window-size 800 600 --icon-size 128 --icon "VoiceAnalysisApp.app" 200 250 --icon "/Applications" 600 250 --app-drop-link 400 450 VoiceAnalysisTool.dmg "dist/VoiceAnalysisApp.app"
+        run: |
+          rm -rf dmg_root && mkdir -p dmg_root
+          cp -R dist/VoiceAnalysisApp.app dmg_root/
+          hdiutil create \
+            -volname "VoiceAnalysisTool" \
+            -srcfolder dmg_root \
+            -ov -format UDZO \
+            VoiceAnalysisTool.dmg
+          ls -lh VoiceAnalysisTool.dmg
+
       - name: 上传成品
         uses: actions/upload-artifact@v4
         with:
-          name: VoiceAnalysisTool-dmg
+          name: VoiceAnalysisTool-macOS
           path: VoiceAnalysisTool.dmg
