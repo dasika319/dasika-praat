@@ -7,8 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
-
+    runs-on: macos-latest
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -21,34 +20,33 @@ jobs:
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
 
-      - name: PyInstaller 打包成 .app
+      - name: PyInstaller 打包
         run: |
-          pyinstaller --noconfirm --clean --windowed \
-            --name VoiceAnalysisApp \
-            --collect-all streamlit \
-            --add-data "main.py:." \
-            run_app.py
-          echo "===== dist 目录 ====="
+          pyinstaller --name "VoiceAnalysisApp" --windowed --onefile run_app.py
+          echo "=== dist 目录内容 ==="
           ls -la dist/
 
-      - name: 封装 DMG（用系统自带 hdiutil，最稳）
+      - name: 封装 DMG (hdiutil)
         run: |
-          set -e
-          rm -rf dmg_stage VoiceAnalysisTool.dmg
-          mkdir -p dmg_stage
-          cp -R "dist/VoiceAnalysisApp.app" dmg_stage/
-          ln -s /Applications dmg_stage/Applications
+          rm -rf dmg_root
+          mkdir -p dmg_root
+          cp -R dist/VoiceAnalysisApp.app dmg_root/
+
+          rm -f VoiceAnalysisTool.dmg
           hdiutil create \
-            -volname "VoiceAnalysis" \
-            -srcfolder dmg_stage \
+            -volname "VoiceAnalysisApp" \
+            -srcfolder dmg_root \
             -ov \
             -format UDZO \
-            "VoiceAnalysisTool.dmg"
-          ls -lh "VoiceAnalysisTool.dmg"
+            VoiceAnalysisTool.dmg
 
-      - name: 上传成品 DMG
+          echo "=== 生成结果 ==="
+          ls -lh VoiceAnalysisTool.dmg
+
+      - name: 上传成品
         uses: actions/upload-artifact@v4
         with:
           name: VoiceAnalysisTool-macOS
