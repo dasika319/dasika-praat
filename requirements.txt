@@ -1,1 +1,7 @@
-streamlit>=1.30
+streamlit
+parselmouth
+numpy
+pandas
+matplotlib
+textgrid
+Pillow

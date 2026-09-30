@@ -1,0 +1,55 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: PyInstaller 打包成 .app
+        run: |
+          pyinstaller --noconfirm --clean --windowed \
+            --name VoiceAnalysisApp \
+            --collect-all streamlit \
+            --add-data "main.py:." \
+            run_app.py
+          echo "===== dist 目录 ====="
+          ls -la dist/
+
+      - name: 封装 DMG（用系统自带 hdiutil，最稳）
+        run: |
+          set -e
+          rm -rf dmg_stage VoiceAnalysisTool.dmg
+          mkdir -p dmg_stage
+          cp -R "dist/VoiceAnalysisApp.app" dmg_stage/
+          ln -s /Applications dmg_stage/Applications
+          hdiutil create \
+            -volname "VoiceAnalysis" \
+            -srcfolder dmg_stage \
+            -ov \
+            -format UDZO \
+            "VoiceAnalysisTool.dmg"
+          ls -lh "VoiceAnalysisTool.dmg"
+
+      - name: 上传成品 DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceAnalysisTool-macOS
+          path: VoiceAnalysisTool.dmg
