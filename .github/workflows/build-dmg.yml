@@ -2,15 +2,12 @@ name: Build macOS DMG
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
+    push:
+      branches: [main, master]
 
 jobs:
   build:
     runs-on: macos-latest
-    env:
-      PIP_INDEX_URL: https://pypi.org/simple
-      PIP_EXTRA_INDEX_URL: ""
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -21,21 +18,21 @@ jobs:
           python-version: "3.11"
           cache: 'pip'
 
-      - name: 诊断源配置
+      - name: 清理可能的污染配置
         run: |
-          echo "=== pip config ==="
+          rm -f ~/Library/Application\ Support/pip/pip.conf ~/.config/pip/pip.conf ~/.pip/pip.conf 2>/dev/null || true
           pip config list || true
-          echo "=== praat-parselmouth 可用版本 ==="
-          pip index versions praat-parselmouth || pip install praat-parselmouth==999999 2>&1 | grep -i "from versions" || true
 
       - name: 安装依赖
         run: |
           pip install --upgrade pip
-          pip install \
-            streamlit \
-            praat-parselmouth==0.11.4 \
-            numpy pandas matplotlib textgrid audio-recorder-streamlit \
-            Pillow pyinstaller pillow
+          # 从官方 API 拿真实 whl 地址，彻底绕过被污染的索引
+          WHEEL=$(curl -sL https://pypi.org/pypi/praat-parselmouth/0.11.4/json | python3 -c "import sys,json; urls=[f['url'] for f in json.load(sys.stdin)['urls'] if 'macosx' in f['filename'] and 'arm64' in f['filename'] and 'cp311' in f['filename']]; print(urls[0] if urls else '')")
+          echo "parsemouth wheel = $WHEEL"
+          if [ -z "$WHEEL" ]; then echo "取不到 whl 地址"; exit 1; fi
+          pip install "$WHEEL"
+          pip install -i https://pypi.org/simple --trusted-host pypi.org \
+            streamlit numpy pandas matplotlib textgrid audio-recorder-streamlit Pillow pyinstaller pillow
 
       - name: PyInstaller 打包
         run: |
