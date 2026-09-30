@@ -1,0 +1,46 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:   # 允许在网页上手动点击运行
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          npm install -g create-dmg
+
+      - name: 转换图标为 .icns
+        run: |
+          mkdir -p icon.iconset
+          sips -z 512 512   resources/app_icon.png --out icon.iconset/icon_512x512.png
+          sips -z 1024 1024 resources/app_icon.png --out icon.iconset/icon_512x512@2x.png
+          sips -z 256 256   resources/app_icon.png --out icon.iconset/icon_256x256.png
+          sips -z 128 128   resources/app_icon.png --out icon.iconset/icon_128x128.png
+          sips -z 64 64     resources/app_icon.png --out icon.iconset/icon_64x64.png
+          sips -z 32 32     resources/app_icon.png --out icon.iconset/icon_32x32.png
+          sips -z 16 16     resources/app_icon.png --out icon.iconset/icon_16x16.png
+          iconutil -c icns icon.iconset -o resources/app_icon.icns
+
+      - name: PyInstaller 打包
+        run: pyinstaller VoiceAnalysisApp.spec --clean --noconfirm
+
+      - name: 封装 DMG
+        run: |
+          create-dmg --volname "语音分析工具" --volicon resources/app_icon.icns             --background resources/installer_bg.png --window-size 800 600 --icon-size 128             --icon "VoiceAnalysisApp.app" 200 250 --icon "/Applications" 600 250             --app-drop-link 400 450 VoiceAnalysisTool.dmg "dist/VoiceAnalysisApp.app"
+
+      - name: 上传成品
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceAnalysisTool-dmg
+          path: VoiceAnalysisTool.dmg
