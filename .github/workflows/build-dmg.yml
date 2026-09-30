@@ -16,11 +16,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: 'pip'
 
       - name: 安装依赖
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller pillow
+          pip config unset global.index-url global.extra-index-url
+          pip install --upgrade pip -i https://pypi.org/simple
+          pip install -i https://pypi.org/simple \
+            --index-url https://pypi.org/simple \
+            streamlit \
+            praat-parselmouth==0.11.4 \
+            numpy pandas matplotlib textgrid audio-recorder-streamlit \
+            Pillow pyinstaller pillow
 
       - name: PyInstaller 打包
         run: |
